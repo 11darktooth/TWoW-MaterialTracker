@@ -1,0 +1,14 @@
+## Interface: 11200
+## Title: MaterialTracker
+## Author: Ashe
+## Notes: Track crafting and gathering materials with pfQuest integration
+## Version: 0.1.0
+## OptionalDeps: pfQuest, pfQuest-turtle, pfUI, Bagshui
+## SavedVariablesPerCharacter: MaterialTrackerDB
+
+MaterialTracker.lua
+pfQuestAPI.lua
+RecipeDB.lua
+ProjectManager.lua
+TrackerUI.lua
+CreationGUI.lua
