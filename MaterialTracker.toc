@@ -9,6 +9,9 @@
 MaterialTracker.lua
 pfQuestAPI.lua
 RecipeDB.lua
+ZoneData.lua
+BagshuiIntegration.lua
 ProjectManager.lua
 TrackerUI.lua
 CreationGUI.lua
+TooltipHooks.lua

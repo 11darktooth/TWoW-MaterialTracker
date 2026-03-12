@@ -11,9 +11,9 @@ local MT = MaterialTracker
 -- ============================================================================
 
 local DIALOG_WIDTH = 400
-local DIALOG_HEIGHT = 500
+local DIALOG_HEIGHT = 560
 local SEARCH_RESULT_HEIGHT = 20
-local MAX_RESULTS = 15
+local MAX_RESULTS = 12
 
 -- Font settings
 local function GetFont()
@@ -110,8 +110,8 @@ end)
 -- SEARCH SECTION
 -- ============================================================================
 
--- Search label
-dialog.searchLabel = dialog:CreateFontString(nil, "OVERLAY")
+-- Search label (created on dialog.border so it renders above the backdrop child frame)
+dialog.searchLabel = dialog.border:CreateFontString(nil, "OVERLAY")
 local font, size = GetFont()
 dialog.searchLabel:SetFont(font, 13, "THICKOUTLINE")
 dialog.searchLabel:SetPoint("TOPLEFT", 10, -50)
@@ -166,7 +166,7 @@ end)
 -- ============================================================================
 
 -- Results label
-dialog.resultsLabel = dialog:CreateFontString(nil, "OVERLAY")
+dialog.resultsLabel = dialog.border:CreateFontString(nil, "OVERLAY")
 dialog.resultsLabel:SetFont(font, 13, "THICKOUTLINE")
 dialog.resultsLabel:SetPoint("TOPLEFT", 10, -115)
 dialog.resultsLabel:SetTextColor(1, 1, 1)
@@ -175,7 +175,7 @@ dialog.resultsLabel:SetText("Results:")
 -- Results scroll frame container
 dialog.resultsContainer = CreateFrame("Frame", nil, dialog)
 dialog.resultsContainer:SetPoint("TOPLEFT", 10, -140)
-dialog.resultsContainer:SetPoint("BOTTOMRIGHT", -10, 100)
+dialog.resultsContainer:SetPoint("BOTTOMRIGHT", -10, 150)
 
 dialog.resultsContainer.backdrop = CreateFrame("Frame", nil, dialog.resultsContainer)
 dialog.resultsContainer.backdrop:SetAllPoints()
@@ -239,23 +239,87 @@ end
 -- ============================================================================
 
 -- Selected item label
-dialog.selectedLabel = dialog:CreateFontString(nil, "OVERLAY")
+dialog.selectedLabel = dialog.border:CreateFontString(nil, "OVERLAY")
 dialog.selectedLabel:SetFont(font, 13, "THICKOUTLINE")
-dialog.selectedLabel:SetPoint("BOTTOMLEFT", 10, 85)
+dialog.selectedLabel:SetPoint("BOTTOMLEFT", 10, 135)
 dialog.selectedLabel:SetTextColor(1, 1, 1)
 dialog.selectedLabel:SetText("Selected Item:")
 
 -- Selected item display
-dialog.selectedItem = dialog:CreateFontString(nil, "OVERLAY")
+dialog.selectedItem = dialog.border:CreateFontString(nil, "OVERLAY")
 dialog.selectedItem:SetFont(font, 13, "THICKOUTLINE")
 dialog.selectedItem:SetPoint("LEFT", dialog.selectedLabel, "RIGHT", 5, 0)
 dialog.selectedItem:SetTextColor(1, 1, 0)
 dialog.selectedItem:SetText("(none)")
 
+-- ============================================================================
+-- PROJECT NAME FIELD (only shown when creating new project)
+-- ============================================================================
+
+dialog.projectNameLabel = dialog.border:CreateFontString(nil, "OVERLAY")
+dialog.projectNameLabel:SetFont(font, 13, "THICKOUTLINE")
+dialog.projectNameLabel:SetPoint("BOTTOMLEFT", 10, 105)
+dialog.projectNameLabel:SetTextColor(1, 1, 1)
+dialog.projectNameLabel:SetText("Project Name:")
+
+dialog.projectNameBox = CreateFrame("EditBox", "MaterialTrackerProjectNameBox", dialog)
+dialog.projectNameBox:SetPoint("LEFT", dialog.projectNameLabel, "RIGHT", 10, 0)
+dialog.projectNameBox:SetWidth(200)
+dialog.projectNameBox:SetHeight(25)
+dialog.projectNameBox:SetAutoFocus(false)
+dialog.projectNameBox:SetFont(GetFont())
+dialog.projectNameBox:SetTextColor(1, 1, 1)
+dialog.projectNameBox:SetMaxLetters(50)
+dialog.projectNameBox:SetNumeric(false)
+dialog.projectNameBox:SetTextInsets(5, 5, 0, 0)
+
+dialog.projectNameBox.backdrop = CreateFrame("Frame", nil, dialog.projectNameBox)
+dialog.projectNameBox.backdrop:SetAllPoints()
+dialog.projectNameBox.backdrop:SetBackdrop({
+  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+  tile = true,
+  tileSize = 16,
+  edgeSize = 12,
+  insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+dialog.projectNameBox.backdrop:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+dialog.projectNameBox.backdrop:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+
+dialog.projectNameBox:SetScript("OnEnterPressed", function()
+  this:ClearFocus()
+end)
+
+dialog.projectNameBox:SetScript("OnEscapePressed", function()
+  this:ClearFocus()
+end)
+
+-- Track manual edits so auto-populate doesn't overwrite user input
+dialog.userEditedName = false
+dialog.projectNameBox.hasFocus = false
+
+dialog.projectNameBox:SetScript("OnEditFocusGained", function()
+  this.hasFocus = true
+end)
+
+dialog.projectNameBox:SetScript("OnEditFocusLost", function()
+  this.hasFocus = false
+end)
+
+dialog.projectNameBox:SetScript("OnTextChanged", function()
+  if this.hasFocus then
+    dialog.userEditedName = true
+  end
+end)
+
+-- Hidden by default; only shown during new project creation
+dialog.projectNameLabel:Hide()
+dialog.projectNameBox:Hide()
+
 -- Quantity label
-dialog.quantityLabel = dialog:CreateFontString(nil, "OVERLAY")
+dialog.quantityLabel = dialog.border:CreateFontString(nil, "OVERLAY")
 dialog.quantityLabel:SetFont(font, 13, "THICKOUTLINE")
-dialog.quantityLabel:SetPoint("BOTTOMLEFT", 10, 55)
+dialog.quantityLabel:SetPoint("BOTTOMLEFT", 10, 75)
 dialog.quantityLabel:SetTextColor(1, 1, 1)
 dialog.quantityLabel:SetText("Target Quantity:")
 
@@ -318,7 +382,7 @@ dialog.recipeCheckbox:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
 dialog.recipeCheckbox:SetChecked(true) -- Default checked
 dialog.recipeCheckbox:Hide() -- Hidden until we select a crafted item
 
-dialog.recipeCheckbox.label = dialog:CreateFontString(nil, "OVERLAY")
+dialog.recipeCheckbox.label = dialog.border:CreateFontString(nil, "OVERLAY")
 dialog.recipeCheckbox.label:SetFont(font, 13, "THICKOUTLINE")
 dialog.recipeCheckbox.label:SetPoint("LEFT", dialog.recipeCheckbox, "RIGHT", 5, 0)
 dialog.recipeCheckbox.label:SetTextColor(0.2, 1, 0.8)
@@ -430,13 +494,15 @@ end)
 -- Store selected item
 dialog.selectedItemID = nil
 dialog.selectedItemName = nil
-dialog.parentGoal = nil  -- For adding to existing projects
+dialog.parentGoal = nil     -- For adding as child to a goal
+dialog.targetProject = nil  -- For adding as root-level to a project
 
 -- Open dialog for creating new project
 function MT:OpenCreationDialog()
   dialog.selectedItemID = nil
   dialog.selectedItemName = nil
   dialog.parentGoal = nil
+  dialog.targetProject = nil
 
   dialog.header.title:SetText("Create Material Project")
   dialog.createButton.text:SetText("Create New Project")
@@ -444,22 +510,55 @@ function MT:OpenCreationDialog()
   dialog.searchBox:SetText("")
   dialog.quantityBox:SetText("1")
 
+  -- Show project name field for new project creation
+  dialog.projectNameLabel:Show()
+  dialog.projectNameBox:Show()
+  dialog.projectNameBox:SetText("")
+  dialog.userEditedName = false
+
   MT:ClearSearchResults()
   dialog:Show()
   dialog.searchBox:SetFocus()
 end
 
--- Open dialog for adding material to existing goal
+-- Open dialog for adding material to existing goal (as child)
 function MT:OpenAddMaterialDialog(parentGoal)
   dialog.selectedItemID = nil
   dialog.selectedItemName = nil
   dialog.parentGoal = parentGoal
+  dialog.targetProject = nil
 
   dialog.header.title:SetText("Add Material to " .. parentGoal.itemName)
   dialog.createButton.text:SetText("Add Material")
   dialog.selectedItem:SetText("(none)")
   dialog.searchBox:SetText("")
   dialog.quantityBox:SetText("1")
+
+  -- Hide project name field when adding material
+  dialog.projectNameLabel:Hide()
+  dialog.projectNameBox:Hide()
+
+  MT:ClearSearchResults()
+  dialog:Show()
+  dialog.searchBox:SetFocus()
+end
+
+-- Open dialog for adding material to project (as root goal)
+function MT:OpenAddMaterialToProjectDialog(project)
+  dialog.selectedItemID = nil
+  dialog.selectedItemName = nil
+  dialog.parentGoal = nil
+  dialog.targetProject = project
+
+  dialog.header.title:SetText("Add Material to " .. project.name)
+  dialog.createButton.text:SetText("Add Material")
+  dialog.selectedItem:SetText("(none)")
+  dialog.searchBox:SetText("")
+  dialog.quantityBox:SetText("1")
+
+  -- Hide project name field when adding material
+  dialog.projectNameLabel:Hide()
+  dialog.projectNameBox:Hide()
 
   MT:ClearSearchResults()
   dialog:Show()
@@ -518,6 +617,11 @@ function MT:SelectItem(itemID, itemName)
   dialog.selectedItemName = itemName
   dialog.selectedItem:SetText(itemName)
 
+  -- Auto-populate project name if user hasn't manually edited it
+  if not dialog.userEditedName and dialog.projectNameBox:IsShown() then
+    dialog.projectNameBox:SetText(itemName)
+  end
+
   MT:Debug("Selected item: " .. itemName .. " (ID: " .. itemID .. ")")
 
   -- Check if this item has a recipe
@@ -552,8 +656,23 @@ function MT:CreateProjectFromDialog()
   -- Check if we should include recipe materials
   local includeRecipe = dialog.recipeCheckbox:IsShown() and dialog.recipeCheckbox:GetChecked()
 
-  if dialog.parentGoal then
-    -- Adding to existing goal
+  if dialog.targetProject then
+    -- Adding to existing project (as root goal)
+    local rootGoal = MT:AddRootGoal(dialog.targetProject, dialog.selectedItemID, quantity)
+
+    if rootGoal then
+      -- Expand with recipe if checkbox is checked
+      if includeRecipe then
+        MT:ExpandGoalWithRecipe(rootGoal, quantity)
+      end
+
+      MT:UpdateAllProjectCounts()
+      MT:UpdateTrackerDisplay()
+      MT:Print("Added " .. dialog.selectedItemName .. " to project " .. dialog.targetProject.name)
+      dialog:Hide()
+    end
+  elseif dialog.parentGoal then
+    -- Adding to existing goal (as child)
     local childGoal = MT:AddChildGoal(dialog.parentGoal, dialog.selectedItemID, quantity)
 
     if childGoal then
@@ -568,21 +687,30 @@ function MT:CreateProjectFromDialog()
       dialog:Hide()
     end
   else
+    -- Determine project name: use custom name if provided, otherwise item name
+    local projectName = dialog.selectedItemName
+    if dialog.projectNameBox:IsShown() then
+      local customName = dialog.projectNameBox:GetText()
+      if customName and string.len(customName) > 0 then
+        projectName = customName
+      end
+    end
+
     -- Creating new project
     local project
 
     if includeRecipe then
       -- Use recipe-aware creation
-      project = MT:CreateProjectWithRecipe(dialog.selectedItemName, dialog.selectedItemID, quantity, true)
+      project = MT:CreateProjectWithRecipe(projectName, dialog.selectedItemID, quantity, true)
     else
       -- Create simple project
-      project = MT:CreateProject(dialog.selectedItemName, dialog.selectedItemID, quantity)
+      project = MT:CreateProject(projectName, dialog.selectedItemID, quantity)
     end
 
     if project then
       MT:UpdateAllProjectCounts()
       MT:UpdateTrackerDisplay()
-      MT:Print("Created project: " .. dialog.selectedItemName)
+      MT:Print("Created project: " .. projectName)
       dialog:Hide()
     end
   end
@@ -598,4 +726,222 @@ end
 
 function MT:ShowAddMaterialDialog(parentGoal)
   MT:OpenAddMaterialDialog(parentGoal)
+end
+
+function MT:ShowAddMaterialToProjectDialog(project)
+  MT:OpenAddMaterialToProjectDialog(project)
+end
+
+-- ============================================================================
+-- EDIT QUANTITY DIALOG
+-- ============================================================================
+
+-- Simple input dialog for editing quantity
+function MT:ShowEditQuantityDialog(goal)
+  StaticPopupDialogs["MT_EDIT_QUANTITY"] = {
+    text = "Edit quantity for " .. goal.itemName .. ":",
+    button1 = "Update",
+    button2 = "Cancel",
+    hasEditBox = 1,
+    maxLetters = 5,
+    OnAccept = function()
+      local editBox = getglobal(this:GetName().."EditBox")
+      if not editBox then editBox = getglobal(this:GetParent():GetName().."EditBox") end
+      if not editBox then return end
+      local newQuantity = tonumber(editBox:GetText())
+      if newQuantity and newQuantity > 0 and math.floor(newQuantity) == newQuantity then
+        goal.target = newQuantity
+        MT:UpdateAllProjectCounts()
+        MT:UpdateTrackerDisplay()
+        MT:Print("Updated " .. goal.itemName .. " target to " .. newQuantity)
+      else
+        MT:Print("Please enter a valid whole number greater than 0")
+      end
+    end,
+    OnShow = function()
+      local editBox = getglobal(this:GetName().."EditBox")
+      if not editBox then return end
+      editBox:SetText(tostring(goal.target))
+      editBox:SetNumeric(true)
+      editBox:HighlightText()
+      editBox:SetFocus()
+    end,
+    OnHide = function()
+      local editBox = getglobal(this:GetName().."EditBox")
+      if not editBox then return end
+      editBox:SetText("")
+    end,
+    EditBoxOnEnterPressed = function()
+      local parent = this:GetParent()
+      local newQuantity = tonumber(this:GetText())
+      if newQuantity and newQuantity > 0 and math.floor(newQuantity) == newQuantity then
+        goal.target = newQuantity
+        MT:UpdateAllProjectCounts()
+        MT:UpdateTrackerDisplay()
+        MT:Print("Updated " .. goal.itemName .. " target to " .. newQuantity)
+      else
+        MT:Print("Please enter a valid whole number greater than 0")
+      end
+      parent:Hide()
+    end,
+    EditBoxOnEscapePressed = function()
+      this:GetParent():Hide()
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1
+  }
+
+  StaticPopup_Show("MT_EDIT_QUANTITY")
+end
+
+-- ============================================================================
+-- REMOVE GOAL CONFIRMATION
+-- ============================================================================
+
+function MT:ConfirmRemoveGoal(goal, project)
+  if not project then
+    MT:Print("Error: Cannot remove goal - project not found")
+    return
+  end
+
+  StaticPopupDialogs["MT_CONFIRM_REMOVE"] = {
+    text = "Remove " .. goal.itemName .. " from " .. project.name .. "?",
+    button1 = "Remove",
+    button2 = "Cancel",
+    OnAccept = function()
+      local parentGoal = MT:FindParentGoal(project, goal)
+      if MT:RemoveGoal(project, goal, parentGoal) then
+        MT:UpdateAllProjectCounts()
+        MT:UpdateTrackerDisplay()
+        MT:Print("Removed " .. goal.itemName)
+      else
+        MT:Print("Error: Could not remove goal")
+      end
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1
+  }
+
+  StaticPopup_Show("MT_CONFIRM_REMOVE")
+end
+
+-- ============================================================================
+-- RENAME PROJECT DIALOG
+-- ============================================================================
+
+function MT:ShowRenameProjectDialog(project)
+  StaticPopupDialogs["MT_RENAME_PROJECT"] = {
+    text = "Rename project '" .. project.name .. "':",
+    button1 = "Rename",
+    button2 = "Cancel",
+    hasEditBox = 1,
+    maxLetters = 50,
+    OnAccept = function()
+      local editBox = getglobal(this:GetName().."EditBox")
+      if not editBox then editBox = getglobal(this:GetParent():GetName().."EditBox") end
+      if not editBox then return end
+      local newName = editBox:GetText()
+      if newName and string.len(newName) > 0 then
+        local oldName = project.name
+        project.name = newName
+        MT:UpdateTrackerDisplay()
+        MT:Print("Renamed '" .. oldName .. "' to '" .. newName .. "'")
+      else
+        MT:Print("Please enter a valid project name")
+      end
+    end,
+    OnShow = function()
+      local editBox = getglobal(this:GetName().."EditBox")
+      if not editBox then return end
+      editBox:SetText(project.name)
+      editBox:HighlightText()
+      editBox:SetFocus()
+    end,
+    OnHide = function()
+      local editBox = getglobal(this:GetName().."EditBox")
+      if not editBox then return end
+      editBox:SetText("")
+    end,
+    EditBoxOnEnterPressed = function()
+      local parent = this:GetParent()
+      local newName = this:GetText()
+      if newName and string.len(newName) > 0 then
+        local oldName = project.name
+        project.name = newName
+        MT:UpdateTrackerDisplay()
+        MT:Print("Renamed '" .. oldName .. "' to '" .. newName .. "'")
+      else
+        MT:Print("Please enter a valid project name")
+      end
+      parent:Hide()
+    end,
+    EditBoxOnEscapePressed = function()
+      this:GetParent():Hide()
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1
+  }
+
+  StaticPopup_Show("MT_RENAME_PROJECT")
+end
+
+-- ============================================================================
+-- DELETE PROJECT CONFIRMATION
+-- ============================================================================
+
+function MT:ConfirmDeleteProject(project)
+  StaticPopupDialogs["MT_CONFIRM_DELETE_PROJECT"] = {
+    text = "Delete project '" .. project.name .. "'?\n\nThis cannot be undone.",
+    button1 = "Delete",
+    button2 = "Cancel",
+    OnAccept = function()
+      local projectName = project.name
+      if MT:DeleteProject(project.id) then
+        MT:UpdateAllProjectCounts()
+        MT:UpdateTrackerDisplay()
+        MT:Print("Deleted project: " .. projectName)
+      else
+        MT:Print("Error: Could not delete project")
+      end
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1
+  }
+
+  StaticPopup_Show("MT_CONFIRM_DELETE_PROJECT")
+end
+
+-- ============================================================================
+-- SHIFT-CLICK QUICK ADD
+-- ============================================================================
+
+-- Quick-add an item by ID and name (opens/reuses creation dialog)
+function MT:QuickAddItem(itemID, itemName)
+  if not dialog:IsShown() then
+    MT:OpenCreationDialog()
+  end
+  MT:SelectItem(itemID, itemName)
+  dialog.searchBox:SetText(itemName)
+  dialog.quantityBox:SetFocus()
+end
+
+-- Hook SetItemRef for shift-click quick add
+MT.OriginalSetItemRef = SetItemRef
+SetItemRef = function(link, text, button)
+  if IsShiftKeyDown() then
+    local _, _, itemID = string.find(link, "item:(%d+)")
+    if itemID then
+      itemID = tonumber(itemID)
+      local itemName = MT:GetItemNameByID(itemID)
+      if itemName then
+        MT:QuickAddItem(itemID, itemName)
+        return
+      end
+    end
+  end
+  MT.OriginalSetItemRef(link, text, button)
 end

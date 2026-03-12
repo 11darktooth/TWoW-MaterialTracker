@@ -1,1 +1,15 @@
-*.md
+# macOS
+.DS_Store
+
+# Development / internal docs
+CLAUDE.md
+TODO.md
+TESTING.md
+DataStructure.md
+DesignDoc.md
+
+# Data scraper tools (not needed by end users)
+data_scraper/
+
+# Claude Code project files
+.claude/

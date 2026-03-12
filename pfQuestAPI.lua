@@ -42,13 +42,22 @@ end
 -- Get item name from ID
 -- Returns: itemName (string) or nil
 function MT:GetItemNameByID(itemID)
-  if not MT:IsPfQuestAvailable() then
-    -- Fallback to WoW API
-    local itemName = GetItemInfo(itemID)
-    return itemName
+  -- Try pfQuest locale table first
+  if MT:IsPfQuestAvailable() then
+    local name = pfDB["items"]["loc"][itemID]
+    if name then return name end
   end
 
-  return pfDB["items"]["loc"][itemID]
+  -- Fallback: WoW API (works for cached items)
+  local itemName = GetItemInfo(itemID)
+  if itemName then return itemName end
+
+  -- Fallback: RecipeDB name field (if item is a crafted item)
+  if MT_RecipeDB and MT_RecipeDB[itemID] and MT_RecipeDB[itemID].name then
+    return MT_RecipeDB[itemID].name
+  end
+
+  return nil
 end
 
 -- Get item ID from name (exact match, case-insensitive)
@@ -124,6 +133,93 @@ function MT:FormatSearchResults(results)
   end)
 
   return formatted
+end
+
+-- ============================================================================
+-- MOB DROP ZONE DATA
+-- ============================================================================
+
+-- Parse a mob level string like "24-25" into minLevel, maxLevel
+-- Handles: "24-25" → 24, 25 | "30" → 30, 30 | nil → 0, 0
+function MT:ParseMobLevel(lvlString)
+  if not lvlString or lvlString == "" then return 0, 0 end
+
+  local _, _, minStr, maxStr = string.find(lvlString, "(%d+)%-(%d+)")
+  if minStr and maxStr then
+    return tonumber(minStr), tonumber(maxStr)
+  end
+
+  local _, _, single = string.find(lvlString, "(%d+)")
+  if single then
+    local lvl = tonumber(single)
+    return lvl, lvl
+  end
+
+  return 0, 0
+end
+
+-- Get mob drop data for an item, aggregated by zone
+-- Returns: { [zoneName] = { totalSpawns = N, mobs = { {name, lvl, dropRate, spawns}, ... } } }
+-- Returns nil if pfQuest is not available or item has no mob drops
+function MT:GetMobDropZones(itemID)
+  if not pfDB or not pfDB["items"] or not pfDB["items"]["data"] then return nil end
+  if not pfDB["units"] or not pfDB["units"]["data"] then return nil end
+
+  local itemData = pfDB["items"]["data"][itemID]
+  if not itemData or not itemData.U then return nil end
+
+  local zones = {}
+
+  for mobID, dropRate in pairs(itemData.U) do
+    local unitData = pfDB["units"]["data"][mobID]
+    if unitData and unitData.coords then
+      local mobName = "Unknown"
+      if pfDB["units"]["loc"] and pfDB["units"]["loc"][mobID] then
+        mobName = pfDB["units"]["loc"][mobID]
+      end
+
+      local lvlString = unitData.lvl or ""
+
+      -- Aggregate spawns per zone for this mob
+      local mobZoneSpawns = {}  -- { [zoneID] = totalSpawns }
+      for _, coord in pairs(unitData.coords) do
+        -- coord format: {x, y, zoneID, spawnCount}
+        local zoneID = coord[3]
+        local spawnCount = coord[4] or 1
+        if zoneID then
+          mobZoneSpawns[zoneID] = (mobZoneSpawns[zoneID] or 0) + spawnCount
+        end
+      end
+
+      -- Add to zone results
+      for zoneID, spawns in pairs(mobZoneSpawns) do
+        local zoneName = nil
+        if pfDB["zones"] and pfDB["zones"]["loc"] and pfDB["zones"]["loc"][zoneID] then
+          zoneName = pfDB["zones"]["loc"][zoneID]
+        end
+
+        if zoneName then
+          if not zones[zoneName] then
+            zones[zoneName] = { totalSpawns = 0, mobs = {} }
+          end
+          zones[zoneName].totalSpawns = zones[zoneName].totalSpawns + spawns
+          table.insert(zones[zoneName].mobs, {
+            name = mobName,
+            lvl = lvlString,
+            dropRate = dropRate,
+            spawns = spawns
+          })
+        end
+      end
+    end
+  end
+
+  -- Return nil if no zones found
+  local hasZones = false
+  for _ in pairs(zones) do hasZones = true; break end
+  if not hasZones then return nil end
+
+  return zones
 end
 
 -- ============================================================================
