@@ -100,6 +100,32 @@ tracker:SetScript("OnMouseUp", function()
   MaterialTrackerDB.settings.trackerY = y
 end)
 
+-- Panel right-click context menu and drag forwarding
+tracker.panel:EnableMouse(true)
+tracker.panel:RegisterForClicks("RightButtonUp")
+
+tracker.panel:SetScript("OnClick", function()
+  if arg1 == "RightButton" then
+    MT:ShowHeaderContextMenu()
+  end
+end)
+
+tracker.panel:SetScript("OnMouseDown", function()
+  if arg1 == "LeftButton" and not MaterialTrackerDB.settings.locked then
+    tracker:StartMoving()
+  end
+end)
+
+tracker.panel:SetScript("OnMouseUp", function()
+  if arg1 == "LeftButton" then
+    tracker:StopMovingOrSizing()
+    local point, _, _, x, y = tracker:GetPoint()
+    MaterialTrackerDB.settings.trackerPoint = point or "TOPLEFT"
+    MaterialTrackerDB.settings.trackerX = x
+    MaterialTrackerDB.settings.trackerY = y
+  end
+end)
+
 -- ============================================================================
 -- ALPHA TRANSITIONS (like pfQuest)
 -- ============================================================================
@@ -728,6 +754,39 @@ function MT:ShowProjectContextMenu(project)
 
   -- Cancel
   local cancelBtn = CreateMenuButton(menu, 4, "Cancel", function()
+    menu:Hide()
+  end)
+  table.insert(menu.buttons, cancelBtn)
+
+  -- Resize menu
+  menu:SetHeight(4 + table.getn(menu.buttons) * 20 + 4)
+
+  -- Position at mouse
+  local x, y = GetCursorPosition()
+  local scale = UIParent:GetEffectiveScale()
+  menu:ClearAllPoints()
+  menu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+  menu:Show()
+end
+
+-- Show context menu for the tracker header bar
+function MT:ShowHeaderContextMenu()
+  local menu = GetContextMenu()
+
+  -- Clear existing buttons
+  for _, btn in ipairs(menu.buttons) do
+    btn:Hide()
+  end
+  menu.buttons = {}
+
+  -- New Project
+  local newBtn = CreateMenuButton(menu, 1, "New Project", function()
+    MT:ShowCreationDialog()
+  end)
+  table.insert(menu.buttons, newBtn)
+
+  -- Cancel
+  local cancelBtn = CreateMenuButton(menu, 2, "Cancel", function()
     menu:Hide()
   end)
   table.insert(menu.buttons, cancelBtn)

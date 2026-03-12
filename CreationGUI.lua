@@ -11,9 +11,10 @@ local MT = MaterialTracker
 -- ============================================================================
 
 local DIALOG_WIDTH = 400
-local DIALOG_HEIGHT = 560
+local DIALOG_HEIGHT = 620
 local SEARCH_RESULT_HEIGHT = 20
-local MAX_RESULTS = 12
+local MAX_RESULTS = 8
+local MAX_CART_ROWS = 6
 
 -- Font settings
 local function GetFont()
@@ -175,7 +176,8 @@ dialog.resultsLabel:SetText("Results:")
 -- Results scroll frame container
 dialog.resultsContainer = CreateFrame("Frame", nil, dialog)
 dialog.resultsContainer:SetPoint("TOPLEFT", 10, -140)
-dialog.resultsContainer:SetPoint("BOTTOMRIGHT", -10, 150)
+dialog.resultsContainer:SetPoint("TOPRIGHT", -10, -140)
+dialog.resultsContainer:SetHeight(MAX_RESULTS * SEARCH_RESULT_HEIGHT + 10)
 
 dialog.resultsContainer.backdrop = CreateFrame("Frame", nil, dialog.resultsContainer)
 dialog.resultsContainer.backdrop:SetAllPoints()
@@ -235,30 +237,240 @@ local function GetResultButton(index)
 end
 
 -- ============================================================================
--- SELECTED ITEM SECTION
+-- STAGING ROW (appears when user clicks a search result)
 -- ============================================================================
 
--- Selected item label
-dialog.selectedLabel = dialog.border:CreateFontString(nil, "OVERLAY")
-dialog.selectedLabel:SetFont(font, 13, "THICKOUTLINE")
-dialog.selectedLabel:SetPoint("BOTTOMLEFT", 10, 135)
-dialog.selectedLabel:SetTextColor(1, 1, 1)
-dialog.selectedLabel:SetText("Selected Item:")
+local STAGING_TOP = -140 - (MAX_RESULTS * SEARCH_RESULT_HEIGHT + 10) - 10
 
--- Selected item display
-dialog.selectedItem = dialog.border:CreateFontString(nil, "OVERLAY")
-dialog.selectedItem:SetFont(font, 13, "THICKOUTLINE")
-dialog.selectedItem:SetPoint("LEFT", dialog.selectedLabel, "RIGHT", 5, 0)
-dialog.selectedItem:SetTextColor(1, 1, 0)
-dialog.selectedItem:SetText("(none)")
+dialog.staging = CreateFrame("Frame", nil, dialog)
+dialog.staging:SetPoint("TOPLEFT", 10, STAGING_TOP)
+dialog.staging:SetPoint("TOPRIGHT", -10, STAGING_TOP)
+dialog.staging:SetHeight(55)
+dialog.staging:Hide()
+
+dialog.staging.bg = dialog.staging:CreateTexture(nil, "BACKGROUND")
+dialog.staging.bg:SetAllPoints()
+dialog.staging.bg:SetTexture(0.15, 0.15, 0.15, 0.8)
+
+-- Item name display
+dialog.staging.nameText = dialog.staging:CreateFontString(nil, "OVERLAY")
+dialog.staging.nameText:SetFont(font, 12, "THICKOUTLINE")
+dialog.staging.nameText:SetPoint("TOPLEFT", 5, -5)
+dialog.staging.nameText:SetTextColor(1, 1, 0)
+dialog.staging.nameText:SetText("")
+
+-- Quantity label
+dialog.staging.qtyLabel = dialog.staging:CreateFontString(nil, "OVERLAY")
+dialog.staging.qtyLabel:SetFont(font, 11, "THICKOUTLINE")
+dialog.staging.qtyLabel:SetPoint("BOTTOMLEFT", 5, 5)
+dialog.staging.qtyLabel:SetTextColor(1, 1, 1)
+dialog.staging.qtyLabel:SetText("Qty:")
+
+-- Quantity input
+dialog.staging.quantityBox = CreateFrame("EditBox", "MaterialTrackerStagingQtyBox", dialog.staging)
+dialog.staging.quantityBox:SetPoint("LEFT", dialog.staging.qtyLabel, "RIGHT", 5, 0)
+dialog.staging.quantityBox:SetWidth(50)
+dialog.staging.quantityBox:SetHeight(20)
+dialog.staging.quantityBox:SetAutoFocus(false)
+dialog.staging.quantityBox:SetFont(GetFont())
+dialog.staging.quantityBox:SetTextColor(1, 1, 1)
+dialog.staging.quantityBox:SetJustifyH("CENTER")
+dialog.staging.quantityBox:SetTextInsets(3, 3, 0, 0)
+dialog.staging.quantityBox:SetMaxLetters(5)
+dialog.staging.quantityBox:SetNumeric(true)
+dialog.staging.quantityBox:SetText("1")
+
+dialog.staging.quantityBox.backdrop = CreateFrame("Frame", nil, dialog.staging.quantityBox)
+dialog.staging.quantityBox.backdrop:SetAllPoints()
+dialog.staging.quantityBox.backdrop:SetBackdrop({
+  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+  tile = true,
+  tileSize = 16,
+  edgeSize = 12,
+  insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+dialog.staging.quantityBox.backdrop:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
+dialog.staging.quantityBox.backdrop:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+
+dialog.staging.quantityBox:SetScript("OnEnterPressed", function()
+  MT:AddStagingToCart()
+end)
+
+dialog.staging.quantityBox:SetScript("OnEscapePressed", function()
+  this:ClearFocus()
+end)
+
+dialog.staging.quantityBox:SetScript("OnEditFocusGained", function()
+  this:HighlightText()
+end)
+
+dialog.staging.quantityBox:SetScript("OnEditFocusLost", function()
+  this:HighlightText(0, 0)
+end)
+
+-- Recipe checkbox (inline in staging row)
+dialog.staging.recipeCheckbox = CreateFrame("CheckButton", "MaterialTrackerStagingRecipeCheckbox", dialog.staging)
+dialog.staging.recipeCheckbox:SetPoint("LEFT", dialog.staging.quantityBox, "RIGHT", 10, 0)
+dialog.staging.recipeCheckbox:SetWidth(16)
+dialog.staging.recipeCheckbox:SetHeight(16)
+dialog.staging.recipeCheckbox:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
+dialog.staging.recipeCheckbox:SetPushedTexture("Interface\\Buttons\\UI-CheckBox-Down")
+dialog.staging.recipeCheckbox:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
+dialog.staging.recipeCheckbox:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
+dialog.staging.recipeCheckbox:SetChecked(true)
+dialog.staging.recipeCheckbox:Hide()
+
+dialog.staging.recipeCheckbox.label = dialog.staging:CreateFontString(nil, "OVERLAY")
+dialog.staging.recipeCheckbox.label:SetFont(font, 11, "THICKOUTLINE")
+dialog.staging.recipeCheckbox.label:SetPoint("LEFT", dialog.staging.recipeCheckbox, "RIGHT", 3, 0)
+dialog.staging.recipeCheckbox.label:SetTextColor(0.2, 1, 0.8)
+dialog.staging.recipeCheckbox.label:SetText("Recipe")
+
+dialog.staging.recipeCheckbox.recipe = nil
+
+dialog.staging.recipeCheckbox:SetScript("OnEnter", function()
+  if this.recipe and this.recipe.materials then
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Recipe Materials:")
+    for _, mat in ipairs(this.recipe.materials) do
+      local matName = MT:GetItemNameByID(mat.itemID) or "Item " .. mat.itemID
+      GameTooltip:AddLine(mat.count .. "x " .. matName, 1, 1, 1)
+    end
+    GameTooltip:Show()
+  end
+end)
+
+dialog.staging.recipeCheckbox:SetScript("OnLeave", function()
+  GameTooltip:Hide()
+end)
+
+-- "Add" button
+dialog.staging.addButton = CreateFrame("Button", nil, dialog.staging)
+dialog.staging.addButton:SetPoint("RIGHT", -5, 0)
+dialog.staging.addButton:SetWidth(50)
+dialog.staging.addButton:SetHeight(22)
+
+dialog.staging.addButton.backdrop = CreateFrame("Frame", nil, dialog.staging.addButton)
+dialog.staging.addButton.backdrop:SetAllPoints()
+dialog.staging.addButton.backdrop:SetBackdrop({
+  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+  tile = true,
+  tileSize = 16,
+  edgeSize = 12,
+  insets = { left = 3, right = 3, top = 3, bottom = 3 }
+})
+dialog.staging.addButton.backdrop:SetBackdropColor(0.2, 0.4, 0.6, 0.9)
+dialog.staging.addButton.backdrop:SetBackdropBorderColor(0.4, 0.6, 0.8, 1)
+
+dialog.staging.addButton.text = dialog.staging.addButton:CreateFontString(nil, "OVERLAY")
+dialog.staging.addButton.text:SetFont(font, 11, "THICKOUTLINE")
+dialog.staging.addButton.text:SetAllPoints()
+dialog.staging.addButton.text:SetTextColor(1, 1, 1)
+dialog.staging.addButton.text:SetText("Add")
+
+dialog.staging.addButton:SetScript("OnClick", function()
+  MT:AddStagingToCart()
+end)
+
+dialog.staging.addButton:SetScript("OnEnter", function()
+  this.backdrop:SetBackdropColor(0.3, 0.5, 0.7, 1)
+end)
+
+dialog.staging.addButton:SetScript("OnLeave", function()
+  this.backdrop:SetBackdropColor(0.2, 0.4, 0.6, 0.9)
+end)
+
+-- Staging state
+dialog.staging.itemID = nil
+dialog.staging.itemName = nil
+
+-- ============================================================================
+-- CART SECTION
+-- ============================================================================
+
+local CART_TOP = STAGING_TOP - 60
+
+dialog.cartLabel = dialog.border:CreateFontString(nil, "OVERLAY")
+dialog.cartLabel:SetFont(font, 13, "THICKOUTLINE")
+dialog.cartLabel:SetPoint("TOPLEFT", 10, CART_TOP)
+dialog.cartLabel:SetTextColor(1, 1, 1)
+dialog.cartLabel:SetText("Cart:")
+
+dialog.cartContainer = CreateFrame("Frame", nil, dialog)
+dialog.cartContainer:SetPoint("TOPLEFT", 10, CART_TOP - 20)
+dialog.cartContainer:SetPoint("TOPRIGHT", -10, CART_TOP - 20)
+dialog.cartContainer:SetHeight(MAX_CART_ROWS * 22)
+
+dialog.cart = {}
+dialog.cartRows = {}
+
+local function CreateCartRow(index)
+  local row = CreateFrame("Frame", nil, dialog.cartContainer)
+  row:SetWidth(DIALOG_WIDTH - 40)
+  row:SetHeight(20)
+  row:SetPoint("TOPLEFT", 0, -(index - 1) * 22)
+
+  row.bg = row:CreateTexture(nil, "BACKGROUND")
+  row.bg:SetAllPoints()
+  row.bg:SetTexture(0.1, 0.1, 0.1, 0.5)
+
+  row.text = row:CreateFontString(nil, "OVERLAY")
+  row.text:SetFont(font, 11, "THICKOUTLINE")
+  row.text:SetPoint("LEFT", 5, 0)
+  row.text:SetPoint("RIGHT", -25, 0)
+  row.text:SetJustifyH("LEFT")
+  row.text:SetTextColor(1, 1, 1)
+
+  -- Remove button
+  row.removeBtn = CreateFrame("Button", nil, row)
+  row.removeBtn:SetPoint("RIGHT", -2, 0)
+  row.removeBtn:SetWidth(18)
+  row.removeBtn:SetHeight(18)
+
+  row.removeBtn.text = row.removeBtn:CreateFontString(nil, "OVERLAY")
+  row.removeBtn.text:SetFont(font, 11, "THICKOUTLINE")
+  row.removeBtn.text:SetAllPoints()
+  row.removeBtn.text:SetTextColor(1, 0.3, 0.3)
+  row.removeBtn.text:SetText("X")
+
+  row.removeBtn:SetScript("OnClick", function()
+    local idx = this:GetParent().cartIndex
+    if idx then
+      table.remove(dialog.cart, idx)
+      MT:UpdateCartDisplay()
+    end
+  end)
+
+  row.removeBtn:SetScript("OnEnter", function()
+    this.text:SetTextColor(1, 0.6, 0.6)
+  end)
+
+  row.removeBtn:SetScript("OnLeave", function()
+    this.text:SetTextColor(1, 0.3, 0.3)
+  end)
+
+  row:Hide()
+  return row
+end
+
+local function GetCartRow(index)
+  if not dialog.cartRows[index] then
+    dialog.cartRows[index] = CreateCartRow(index)
+  end
+  return dialog.cartRows[index]
+end
 
 -- ============================================================================
 -- PROJECT NAME FIELD (only shown when creating new project)
 -- ============================================================================
 
+local PROJECT_NAME_TOP = CART_TOP - 20 - (MAX_CART_ROWS * 22) - 10
+
 dialog.projectNameLabel = dialog.border:CreateFontString(nil, "OVERLAY")
 dialog.projectNameLabel:SetFont(font, 13, "THICKOUTLINE")
-dialog.projectNameLabel:SetPoint("BOTTOMLEFT", 10, 105)
+dialog.projectNameLabel:SetPoint("TOPLEFT", 10, PROJECT_NAME_TOP)
 dialog.projectNameLabel:SetTextColor(1, 1, 1)
 dialog.projectNameLabel:SetText("Project Name:")
 
@@ -316,97 +528,6 @@ end)
 dialog.projectNameLabel:Hide()
 dialog.projectNameBox:Hide()
 
--- Quantity label
-dialog.quantityLabel = dialog.border:CreateFontString(nil, "OVERLAY")
-dialog.quantityLabel:SetFont(font, 13, "THICKOUTLINE")
-dialog.quantityLabel:SetPoint("BOTTOMLEFT", 10, 75)
-dialog.quantityLabel:SetTextColor(1, 1, 1)
-dialog.quantityLabel:SetText("Target Quantity:")
-
--- Quantity input
-dialog.quantityBox = CreateFrame("EditBox", "MaterialTrackerQuantityBox", dialog)
-dialog.quantityBox:SetPoint("LEFT", dialog.quantityLabel, "RIGHT", 10, 0)
-dialog.quantityBox:SetWidth(80)
-dialog.quantityBox:SetHeight(25)
-dialog.quantityBox:SetAutoFocus(false)
-dialog.quantityBox:SetFont(GetFont())
-dialog.quantityBox:SetTextColor(1, 1, 1)
-dialog.quantityBox:SetJustifyH("CENTER")
-dialog.quantityBox:SetTextInsets(5, 5, 0, 0)
-dialog.quantityBox:SetMaxLetters(5)
-dialog.quantityBox:SetNumeric(true)
-dialog.quantityBox:SetText("1")
-
-dialog.quantityBox.backdrop = CreateFrame("Frame", nil, dialog.quantityBox)
-dialog.quantityBox.backdrop:SetAllPoints()
-dialog.quantityBox.backdrop:SetBackdrop({
-  bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-  edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-  tile = true,
-  tileSize = 16,
-  edgeSize = 12,
-  insets = { left = 3, right = 3, top = 3, bottom = 3 }
-})
-dialog.quantityBox.backdrop:SetBackdropColor(0.1, 0.1, 0.1, 0.9)
-dialog.quantityBox.backdrop:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
-
-dialog.quantityBox:SetScript("OnEnterPressed", function()
-  this:ClearFocus()
-end)
-
-dialog.quantityBox:SetScript("OnEscapePressed", function()
-  this:ClearFocus()
-end)
-
-dialog.quantityBox:SetScript("OnEditFocusGained", function()
-  this:HighlightText()
-end)
-
-dialog.quantityBox:SetScript("OnEditFocusLost", function()
-  this:HighlightText(0, 0)
-end)
-
--- ============================================================================
--- RECIPE CHECKBOX
--- ============================================================================
-
--- Include materials checkbox (for crafted items)
-dialog.recipeCheckbox = CreateFrame("CheckButton", "MaterialTrackerRecipeCheckbox", dialog)
-dialog.recipeCheckbox:SetPoint("BOTTOMLEFT", dialog.quantityLabel, "BOTTOMLEFT", 0, -30)
-dialog.recipeCheckbox:SetWidth(20)
-dialog.recipeCheckbox:SetHeight(20)
-dialog.recipeCheckbox:SetNormalTexture("Interface\\Buttons\\UI-CheckBox-Up")
-dialog.recipeCheckbox:SetPushedTexture("Interface\\Buttons\\UI-CheckBox-Down")
-dialog.recipeCheckbox:SetHighlightTexture("Interface\\Buttons\\UI-CheckBox-Highlight")
-dialog.recipeCheckbox:SetCheckedTexture("Interface\\Buttons\\UI-CheckBox-Check")
-dialog.recipeCheckbox:SetChecked(true) -- Default checked
-dialog.recipeCheckbox:Hide() -- Hidden until we select a crafted item
-
-dialog.recipeCheckbox.label = dialog.border:CreateFontString(nil, "OVERLAY")
-dialog.recipeCheckbox.label:SetFont(font, 13, "THICKOUTLINE")
-dialog.recipeCheckbox.label:SetPoint("LEFT", dialog.recipeCheckbox, "RIGHT", 5, 0)
-dialog.recipeCheckbox.label:SetTextColor(0.2, 1, 0.8)
-dialog.recipeCheckbox.label:SetText("Include materials automatically")
-
--- Store recipe info for tooltip
-dialog.recipeCheckbox.recipe = nil
-
-dialog.recipeCheckbox:SetScript("OnEnter", function()
-  if this.recipe and this.recipe.materials then
-    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-    GameTooltip:SetText("Recipe Materials:")
-    for _, mat in ipairs(this.recipe.materials) do
-      local matName = MT:GetItemNameByID(mat.itemID) or "Item " .. mat.itemID
-      GameTooltip:AddLine(mat.count .. "x " .. matName, 1, 1, 1)
-    end
-    GameTooltip:Show()
-  end
-end)
-
-dialog.recipeCheckbox:SetScript("OnLeave", function()
-  GameTooltip:Hide()
-end)
-
 -- ============================================================================
 -- ACTION BUTTONS
 -- ============================================================================
@@ -417,7 +538,6 @@ dialog.createButton:SetPoint("BOTTOMLEFT", 10, 10)
 dialog.createButton:SetWidth(180)
 dialog.createButton:SetHeight(30)
 
--- Button backdrop
 dialog.createButton.backdrop = CreateFrame("Frame", nil, dialog.createButton)
 dialog.createButton.backdrop:SetAllPoints()
 dialog.createButton.backdrop:SetBackdrop({
@@ -455,7 +575,6 @@ dialog.cancelButton:SetPoint("BOTTOMRIGHT", -10, 10)
 dialog.cancelButton:SetWidth(100)
 dialog.cancelButton:SetHeight(30)
 
--- Button backdrop
 dialog.cancelButton.backdrop = CreateFrame("Frame", nil, dialog.cancelButton)
 dialog.cancelButton.backdrop:SetAllPoints()
 dialog.cancelButton.backdrop:SetBackdrop({
@@ -487,80 +606,84 @@ dialog.cancelButton:SetScript("OnLeave", function()
   this.backdrop:SetBackdropColor(0.5, 0.2, 0.2, 0.9)
 end)
 
+-- Clean up cart state when dialog is hidden
+dialog:SetScript("OnHide", function()
+  dialog.cart = {}
+  dialog.staging:Hide()
+  dialog.staging.itemID = nil
+  dialog.staging.itemName = nil
+  for _, row in pairs(dialog.cartRows) do
+    row:Hide()
+  end
+end)
+
 -- ============================================================================
 -- DIALOG FUNCTIONS
 -- ============================================================================
 
--- Store selected item
-dialog.selectedItemID = nil
-dialog.selectedItemName = nil
+-- Dialog mode state
 dialog.parentGoal = nil     -- For adding as child to a goal
 dialog.targetProject = nil  -- For adding as root-level to a project
 
--- Open dialog for creating new project
-function MT:OpenCreationDialog()
-  dialog.selectedItemID = nil
-  dialog.selectedItemName = nil
+-- Reset cart and staging state for a fresh dialog
+local function ResetDialogState()
+  dialog.cart = {}
+  dialog.staging:Hide()
+  dialog.staging.itemID = nil
+  dialog.staging.itemName = nil
+  dialog.staging.recipeCheckbox:Hide()
   dialog.parentGoal = nil
   dialog.targetProject = nil
+  dialog.searchBox:SetText("")
+  dialog.userEditedName = false
+  MT:ClearSearchResults()
+  MT:UpdateCartDisplay()
+end
+
+-- Open dialog for creating new project
+function MT:OpenCreationDialog()
+  ResetDialogState()
 
   dialog.header.title:SetText("Create Material Project")
   dialog.createButton.text:SetText("Create New Project")
-  dialog.selectedItem:SetText("(none)")
-  dialog.searchBox:SetText("")
-  dialog.quantityBox:SetText("1")
 
   -- Show project name field for new project creation
   dialog.projectNameLabel:Show()
   dialog.projectNameBox:Show()
   dialog.projectNameBox:SetText("")
-  dialog.userEditedName = false
 
-  MT:ClearSearchResults()
   dialog:Show()
   dialog.searchBox:SetFocus()
 end
 
 -- Open dialog for adding material to existing goal (as child)
 function MT:OpenAddMaterialDialog(parentGoal)
-  dialog.selectedItemID = nil
-  dialog.selectedItemName = nil
+  ResetDialogState()
   dialog.parentGoal = parentGoal
-  dialog.targetProject = nil
 
   dialog.header.title:SetText("Add Material to " .. parentGoal.itemName)
-  dialog.createButton.text:SetText("Add Material")
-  dialog.selectedItem:SetText("(none)")
-  dialog.searchBox:SetText("")
-  dialog.quantityBox:SetText("1")
+  dialog.createButton.text:SetText("Add Materials")
 
   -- Hide project name field when adding material
   dialog.projectNameLabel:Hide()
   dialog.projectNameBox:Hide()
 
-  MT:ClearSearchResults()
   dialog:Show()
   dialog.searchBox:SetFocus()
 end
 
 -- Open dialog for adding material to project (as root goal)
 function MT:OpenAddMaterialToProjectDialog(project)
-  dialog.selectedItemID = nil
-  dialog.selectedItemName = nil
-  dialog.parentGoal = nil
+  ResetDialogState()
   dialog.targetProject = project
 
   dialog.header.title:SetText("Add Material to " .. project.name)
-  dialog.createButton.text:SetText("Add Material")
-  dialog.selectedItem:SetText("(none)")
-  dialog.searchBox:SetText("")
-  dialog.quantityBox:SetText("1")
+  dialog.createButton.text:SetText("Add Materials")
 
   -- Hide project name field when adding material
   dialog.projectNameLabel:Hide()
   dialog.projectNameBox:Hide()
 
-  MT:ClearSearchResults()
   dialog:Show()
   dialog.searchBox:SetFocus()
 end
@@ -606,111 +729,170 @@ function MT:ClearSearchResults()
     button:Hide()
   end
   dialog.resultsLabel:SetText("Results:")
-
-  -- Also hide recipe checkbox when clearing
-  dialog.recipeCheckbox:Hide()
 end
 
--- Select an item from results
+-- Select an item from search results — populates the staging row
 function MT:SelectItem(itemID, itemName)
-  dialog.selectedItemID = itemID
-  dialog.selectedItemName = itemName
-  dialog.selectedItem:SetText(itemName)
+  dialog.staging.itemID = itemID
+  dialog.staging.itemName = itemName
+  dialog.staging.nameText:SetText(itemName)
+  dialog.staging.quantityBox:SetText("1")
+  dialog.staging:Show()
 
-  -- Auto-populate project name if user hasn't manually edited it
+  -- Auto-populate project name from first item if user hasn't edited it
   if not dialog.userEditedName and dialog.projectNameBox:IsShown() then
-    dialog.projectNameBox:SetText(itemName)
+    if table.getn(dialog.cart) == 0 then
+      dialog.projectNameBox:SetText(itemName)
+    end
   end
 
-  MT:Debug("Selected item: " .. itemName .. " (ID: " .. itemID .. ")")
+  MT:Debug("Staged item: " .. itemName .. " (ID: " .. itemID .. ")")
 
   -- Check if this item has a recipe
   local recipe = MT:GetRecipe(itemID)
   if recipe and recipe.materials then
-    -- Show recipe checkbox
-    dialog.recipeCheckbox.recipe = recipe
-    dialog.recipeCheckbox:Show()
-
-    -- Update label with material count
-    local matCount = table.getn(recipe.materials)
-    dialog.recipeCheckbox.label:SetText("Include materials automatically (" .. matCount .. " items)")
+    dialog.staging.recipeCheckbox.recipe = recipe
+    dialog.staging.recipeCheckbox:Show()
+    dialog.staging.recipeCheckbox:SetChecked(true)
+    dialog.staging.recipeCheckbox.label:SetText("Recipe")
   else
-    -- Hide recipe checkbox
-    dialog.recipeCheckbox:Hide()
+    dialog.staging.recipeCheckbox:Hide()
   end
+
+  dialog.staging.quantityBox:SetFocus()
 end
 
--- Create project or add material from dialog
-function MT:CreateProjectFromDialog()
-  if not dialog.selectedItemID then
-    MT:Print("Please select an item first")
-    return
-  end
+-- Add the currently staged item to the cart
+function MT:AddStagingToCart()
+  if not dialog.staging.itemID then return end
 
-  local quantity = tonumber(dialog.quantityBox:GetText())
-  if not quantity or quantity <= 0 then
+  local qty = tonumber(dialog.staging.quantityBox:GetText())
+  if not qty or qty <= 0 then
     MT:Print("Please enter a valid quantity")
     return
   end
 
-  -- Check if we should include recipe materials
-  local includeRecipe = dialog.recipeCheckbox:IsShown() and dialog.recipeCheckbox:GetChecked()
+  local includeRecipe = dialog.staging.recipeCheckbox:IsShown() and dialog.staging.recipeCheckbox:GetChecked()
+
+  -- Check for duplicate — merge quantities if same item
+  for _, entry in ipairs(dialog.cart) do
+    if entry.itemID == dialog.staging.itemID then
+      entry.quantity = entry.quantity + qty
+      entry.includeRecipe = entry.includeRecipe or includeRecipe
+      MT:Debug("Merged into existing cart entry: " .. entry.itemName .. " x" .. entry.quantity)
+      dialog.staging:Hide()
+      dialog.staging.itemID = nil
+      dialog.staging.itemName = nil
+      MT:UpdateCartDisplay()
+      dialog.searchBox:SetText("")
+      dialog.searchBox:SetFocus()
+      return
+    end
+  end
+
+  local entry = {
+    itemID = dialog.staging.itemID,
+    itemName = dialog.staging.itemName,
+    quantity = qty,
+    includeRecipe = includeRecipe
+  }
+  table.insert(dialog.cart, entry)
+
+  dialog.staging:Hide()
+  dialog.staging.itemID = nil
+  dialog.staging.itemName = nil
+  MT:UpdateCartDisplay()
+  dialog.searchBox:SetText("")
+  dialog.searchBox:SetFocus()
+end
+
+-- Update the cart display rows
+function MT:UpdateCartDisplay()
+  -- Hide all cart rows first
+  for _, row in pairs(dialog.cartRows) do
+    row:Hide()
+  end
+
+  local count = table.getn(dialog.cart)
+
+  for i = 1, math.min(count, MAX_CART_ROWS) do
+    local row = GetCartRow(i)
+    local entry = dialog.cart[i]
+
+    local label = entry.itemName .. " x" .. entry.quantity
+    if entry.includeRecipe then
+      label = label .. " |cff33ffcc[+Recipe]|r"
+    end
+    row.text:SetText(label)
+    row.cartIndex = i
+    row:Show()
+  end
+
+  -- Update cart label
+  if count == 0 then
+    dialog.cartLabel:SetText("Cart: (empty)")
+  else
+    dialog.cartLabel:SetText("Cart: (" .. count .. " items)")
+  end
+end
+
+-- Create project or add materials from cart
+function MT:CreateProjectFromDialog()
+  if table.getn(dialog.cart) == 0 then
+    MT:Print("Please add at least one item to the cart")
+    return
+  end
 
   if dialog.targetProject then
-    -- Adding to existing project (as root goal)
-    local rootGoal = MT:AddRootGoal(dialog.targetProject, dialog.selectedItemID, quantity)
-
-    if rootGoal then
-      -- Expand with recipe if checkbox is checked
-      if includeRecipe then
-        MT:ExpandGoalWithRecipe(rootGoal, quantity)
+    -- Adding to existing project (as root goals)
+    for _, entry in ipairs(dialog.cart) do
+      local rootGoal = MT:AddRootGoal(dialog.targetProject, entry.itemID, entry.quantity)
+      if rootGoal and entry.includeRecipe then
+        MT:ExpandGoalWithRecipe(rootGoal, entry.quantity)
       end
-
-      MT:UpdateAllProjectCounts()
-      MT:UpdateTrackerDisplay()
-      MT:Print("Added " .. dialog.selectedItemName .. " to project " .. dialog.targetProject.name)
-      dialog:Hide()
     end
+    MT:UpdateAllProjectCounts()
+    MT:UpdateTrackerDisplay()
+    MT:Print("Added " .. table.getn(dialog.cart) .. " item(s) to " .. dialog.targetProject.name)
+    dialog:Hide()
+
   elseif dialog.parentGoal then
-    -- Adding to existing goal (as child)
-    local childGoal = MT:AddChildGoal(dialog.parentGoal, dialog.selectedItemID, quantity)
-
-    if childGoal then
-      -- Expand with recipe if checkbox is checked
-      if includeRecipe then
-        MT:ExpandGoalWithRecipe(childGoal, quantity)
+    -- Adding to existing goal (as children)
+    for _, entry in ipairs(dialog.cart) do
+      local childGoal = MT:AddChildGoal(dialog.parentGoal, entry.itemID, entry.quantity)
+      if childGoal and entry.includeRecipe then
+        MT:ExpandGoalWithRecipe(childGoal, entry.quantity)
       end
-
-      MT:UpdateAllProjectCounts()
-      MT:UpdateTrackerDisplay()
-      MT:Print("Added " .. dialog.selectedItemName .. " to " .. dialog.parentGoal.itemName)
-      dialog:Hide()
     end
+    MT:UpdateAllProjectCounts()
+    MT:UpdateTrackerDisplay()
+    MT:Print("Added " .. table.getn(dialog.cart) .. " item(s) to " .. dialog.parentGoal.itemName)
+    dialog:Hide()
+
   else
-    -- Determine project name: use custom name if provided, otherwise item name
-    local projectName = dialog.selectedItemName
+    -- Creating new project
+    local projectName = nil
     if dialog.projectNameBox:IsShown() then
       local customName = dialog.projectNameBox:GetText()
       if customName and string.len(customName) > 0 then
         projectName = customName
       end
     end
-
-    -- Creating new project
-    local project
-
-    if includeRecipe then
-      -- Use recipe-aware creation
-      project = MT:CreateProjectWithRecipe(projectName, dialog.selectedItemID, quantity, true)
-    else
-      -- Create simple project
-      project = MT:CreateProject(projectName, dialog.selectedItemID, quantity)
+    if not projectName then
+      projectName = dialog.cart[1].itemName
     end
 
+    local project = MT:CreateProject(projectName)
     if project then
+      for _, entry in ipairs(dialog.cart) do
+        local rootGoal = MT:AddRootGoal(project, entry.itemID, entry.quantity)
+        if rootGoal and entry.includeRecipe then
+          MT:ExpandGoalWithRecipe(rootGoal, entry.quantity)
+        end
+      end
       MT:UpdateAllProjectCounts()
       MT:UpdateTrackerDisplay()
-      MT:Print("Created project: " .. projectName)
+      MT:Print("Created project: " .. projectName .. " with " .. table.getn(dialog.cart) .. " item(s)")
       dialog:Hide()
     end
   end
@@ -915,33 +1097,3 @@ function MT:ConfirmDeleteProject(project)
   StaticPopup_Show("MT_CONFIRM_DELETE_PROJECT")
 end
 
--- ============================================================================
--- SHIFT-CLICK QUICK ADD
--- ============================================================================
-
--- Quick-add an item by ID and name (opens/reuses creation dialog)
-function MT:QuickAddItem(itemID, itemName)
-  if not dialog:IsShown() then
-    MT:OpenCreationDialog()
-  end
-  MT:SelectItem(itemID, itemName)
-  dialog.searchBox:SetText(itemName)
-  dialog.quantityBox:SetFocus()
-end
-
--- Hook SetItemRef for shift-click quick add
-MT.OriginalSetItemRef = SetItemRef
-SetItemRef = function(link, text, button)
-  if IsShiftKeyDown() then
-    local _, _, itemID = string.find(link, "item:(%d+)")
-    if itemID then
-      itemID = tonumber(itemID)
-      local itemName = MT:GetItemNameByID(itemID)
-      if itemName then
-        MT:QuickAddItem(itemID, itemName)
-        return
-      end
-    end
-  end
-  MT.OriginalSetItemRef(link, text, button)
-end

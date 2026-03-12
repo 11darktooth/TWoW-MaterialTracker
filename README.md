@@ -86,18 +86,18 @@ All commands use `/mt` (or `/materialtracker`).
 
 ### Creating a Project
 
-1. Type `/mt add` to open the creation dialog.
+1. Type `/mt add` to open the creation dialog (or right-click the tracker header and select "New Project").
 2. Search for an item by name (requires pfQuest).
-3. Click an item from the results to select it.
-4. Set your target quantity.
-5. Check **Recipe** to automatically expand crafting materials into sub-goals.
-6. Click **Create**.
-
-You can also **Shift+click** an item link in chat to quick-add it to a project.
+3. Click an item from the results to stage it.
+4. Set the target quantity and optionally check **Recipe** to auto-expand crafting materials.
+5. Click **Add** to add the item to the cart.
+6. Repeat steps 2-5 to add more items.
+7. Click **Create New Project** to create the project with all cart items at once.
 
 ### Tracker Interaction
 
 - **Click** a project header (+/-) to expand or collapse it.
+- **Right-click** the tracker header bar to create a new project.
 - **Right-click** a project header to add materials, rename, or delete the project.
 - **Right-click** a goal to add child materials, edit the quantity, or remove it.
 - **Drag** the tracker to reposition it (when unlocked).
