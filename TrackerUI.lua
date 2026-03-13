@@ -102,13 +102,6 @@ end)
 
 -- Panel right-click context menu and drag forwarding
 tracker.panel:EnableMouse(true)
-tracker.panel:RegisterForClicks("RightButtonUp")
-
-tracker.panel:SetScript("OnClick", function()
-  if arg1 == "RightButton" then
-    MT:ShowHeaderContextMenu()
-  end
-end)
 
 tracker.panel:SetScript("OnMouseDown", function()
   if arg1 == "LeftButton" and not MaterialTrackerDB.settings.locked then
@@ -123,6 +116,8 @@ tracker.panel:SetScript("OnMouseUp", function()
     MaterialTrackerDB.settings.trackerPoint = point or "TOPLEFT"
     MaterialTrackerDB.settings.trackerX = x
     MaterialTrackerDB.settings.trackerY = y
+  elseif arg1 == "RightButton" then
+    MT:ShowHeaderContextMenu()
   end
 end)
 
